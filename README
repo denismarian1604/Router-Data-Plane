@@ -1,0 +1,19 @@
+Tema 1 - Protocoale De Comunicatii
+Student : Vladulescu Denis-Marian
+Grupa: 324CBb
+
+Pentru a realiza implementarea Data Plane-ului unui router, inainte de orice este nevoie de :
+- Tabela de routare a router-ului, preluata din argumentul argv[1] cu care este invocat executabilul. Tabela de routare este citita si parsata cu ajutorul functiei predefinite read_rtable. Pentru a eficientiza cautarea, stocarea si accesarea adreselor se va face folosind o structura de tip trie. Aceasta structura este initializata, iar apoi se construieste trie-ul asociat tabelei de routare date cu ajutorul functiei build_trie. Aceasta itereaza prin intrarile din tabela de routare, si desparte fiecare prefix in biti, stocandu-i in trie-ul corespunzator.
+- Tabela ARP a router-ului, care va fi implementata intr-un mod dinamic: Se prealoca spatiu pentru un vector de structuri arp_table_entry, care se va completa pe parcurs cand se vor pune in cache noi intrari.
+- O coada de asteptare pentru pachetele a caror destinatie(adresa mac asociata urmatorului hop) nu se cunoaste inca. Structura folosita este cea predefinita in cadrul temei.
+
+Router-ul asteapta cu ajutorul instructiunii blocante receive_from_any_link pachete. Cand se receptioneaza unul, router-ul verifica ce fel de pachet este(se verifica ether type-ul pachetului). In cadrul temei, pachetele recunoscute vor fi cele IP(ether type 0x0800) si cele ARP(0x0806).
+
+Daca pachetul este IP, in primul rand, se verifica daca acesta era destinat router-ului (un echo request).
+In caz afirmativ si daca checksum-ul este valid, router-ul raspunde cu un echo reply.
+Daca pachetul nu era destinat router-ului, se verifica integritatea pachetului calculand checksum-ul acestuia. Daca checksum-ul este corect, se decrementeaza TTL-ul pachetului(in cazul in care acesta este <= 1 se va arunca pachetul si se va trimite un mesaj ICMP type 11, Time Limit Exceeded), iar apoi se cauta urmatorul hop cel mai optim(cu ajutorul functiei trie_lookup)(Daca nu exista, se va arunc pachetul si se va trimite un mesaj ICMP type 3, Destination Unreachable). Se inlocuieste in frame-ul ethernet adresa mac sursa, cu adresa mac a interfetei router-ului pe care urmeaza sa fie trimis pachetul, iar apoi se cauta, in tabela arp, adresa mac asociata urmatorului hop.
+In cazul in care in tabela ARP nu se gaseste adresa mac asociata adresei urmatorului hop, se realizeaza un ARP request din partea interfetei router-ului pe care se cauta adresa mac(tha va fie mac-ul broadcast, tpa va fi adresa ip al carei mac il vrem, spa va fi adresa ip a interfetei de unde pleaca cererea, iar sha va fi adresa mac a interfetei de unde pleaca cererea). Se plaseaza intr-o coada pachetul curent si se asteapta raspunsul la cerere.
+In cazul in care in tabela ARP se gaseste adresa mac asociata adresei urmatorului hop, se inlocuieste adresa mac destinatie din frame-ul ethernet cu adresa mac gasita, si se trimite pachetul pe interfata corespunzatoare.
+
+Daca pachetul este ARP, se verifica daca aceste este un ARP reply, caz in care se actualizeaza tabela ARP si se apeleaza functia solve_queue, care itereaza prin toate pachetele din coada de asteptare si le rezolva pe cele pentru care acum se cunoaste adresa mac destinatie. Cele care inca nu pot fi trimise, sunt puse la loc in coada.
+Daca pachetul este un ARP request, router-ul pregateste un ARP reply cu adresa mac a interfetei pe care a primit cererea, si trimite raspunsul.
